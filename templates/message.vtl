@@ -1,0 +1,278 @@
+##
+#macro(isSigned $type)
+#if(!$type.startsWith("u"))true #else false#end
+#end
+##
+#macro(getJavaType $type)
+#if($type.startsWith("uint32") || $type.contains("64_"))
+long##
+#elseif($type.startsWith("float"))
+float## 
+#elseif($type.startsWith("double"))
+double##
+#elseif($type.startsWith("char"))	
+char##
+#else
+int##
+#end
+#end
+##
+#macro(toTitleCase $string) 
+$string.substring(0, 1).toUpperCase()$string.substring(1, $string.length())##
+#end
+##
+package eu.sathra.mavlink;
+
+import java.nio.ByteBuffer;
+
+public class MavLink {
+	
+	private static final int PROTOCOL_VERSION = $version;
+	private static final short PACKET_START_SIGN = 0xFE; //v1.0: 0xFE; v0.9: 0x55
+	private static final int HEADER_LENGTH = 8; // Overhead size
+	
+	// Mavlink constants
+	
+#foreach($enum in $enums)
+	/*
+	 * $enum.description
+	 */
+#foreach($value in $enum.values)
+	public static final int $value.name = $value.value; // $value.description
+#end	
+ 
+#end
+	public static abstract class Message {
+		
+		protected short systemId;
+		protected short componentId;
+		protected short sequenceIndex;
+	
+		protected Message(byte[] bytes) {
+			ByteBuffer buffer = ByteBuffer.wrap(bytes);
+			short startSign = (short)(buffer.get() & 0xFF);
+			
+			if(startSign != PACKET_START_SIGN) {
+				throw new IllegalStateException("Unsupported protocol. Excepted: " + 
+					PACKET_START_SIGN + " got: " + startSign);
+			}
+			
+			buffer.get(); // payload length, ignore
+			this.sequenceIndex = (short)(buffer.get() & 0xFF);
+			this.systemId = (short)(buffer.get() & 0xFF);
+			this.componentId = (short)(buffer.get() & 0xFF);
+			
+			short messageId = (short)(buffer.get() & 0xFF);
+			if(messageId != getMessageId()) {
+				throw new IllegalArgumentException("Invalid message id. Expected: " + 
+					getMessageId() + " got: " + messageId);
+			}
+			
+			decodePayload(buffer);
+			// TODO: CRC
+		}
+		
+		protected Message(short systemId, short componentId) {
+			this.systemId = systemId;
+			this.componentId = componentId;
+		}
+	
+		public abstract int getMessageId();
+	
+		public abstract int getLength();
+		
+		public abstract int getCRCExtra();
+		
+		protected abstract ByteBuffer decodePayload(ByteBuffer buffer);
+		
+		protected abstract ByteBuffer encodePayload(ByteBuffer buffer);
+		
+		public byte[] encode() {
+			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+getLength());
+			
+			this.setSequenceIndex((short)0x4E); // TMP
+			
+			buffer.put((byte)(PACKET_START_SIGN & 0xFF));
+			buffer.put((byte)(getLength() & 0xFF));
+			buffer.put((byte)(getSequenceIndex() & 0xFF));//sequence
+			buffer.put((byte)(getSystemId() & 0xFF));
+			buffer.put((byte)(getComponentId() & 0xFF));
+			buffer.put((byte)(getMessageId() & 0xFF));
+			encodePayload(buffer);
+			
+			// Calculate CRC
+			buffer.put((byte)(getCRCExtra() & 0xFF));
+			
+			byte[] bytes = new byte[HEADER_LENGTH+getLength()];
+			buffer.rewind();
+			buffer.get(bytes);
+
+			int crc = getCRC(bytes, 1, bytes.length-1);
+			bytes[bytes.length-2] = (byte)((crc>>8)&0xFF);
+			bytes[bytes.length-1] = (byte)((crc)&0xFF);
+
+			return bytes;
+		}
+		
+		public void setSequenceIndex(short index) {
+			sequenceIndex = index;
+		}
+		
+		public short getSequenceIndex() {
+			return sequenceIndex;
+		}
+		
+		public short getSystemId() {
+			return systemId;
+		}
+		
+		public short getComponentId() {
+			return componentId;
+		}
+		
+		private int getCRC(byte[] bytes, int offset, int length) {
+			int crc = 0xffff;
+			
+			for(int c=offset; c<length; ++c) {
+				int tmp;
+				int data = bytes[c] & 0xff;	//cast because we want an unsigned type
+				tmp = data ^ (crc & 0xff);
+				tmp ^= (tmp << 4) & 0xff;
+				crc = ((crc >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3)
+						^ ((tmp >> 4) & 0xf);
+			}
+
+			return (crc&0xFF) << 8 | (crc>>8&0x00FF);
+		}
+	}
+	
+#foreach($message in $message_list)
+#if($message.description)
+	/*
+	 * $message.description
+	 */
+#end
+	public static class MAV_MSG_$message.name extends Message {
+	
+#foreach( $field in $message.fields )
+		private #getJavaType($field.type) $field.name#if($field.array)[] = new #getJavaType($field.type)[$field.length]#end; // $field.description
+#end
+	
+		public MAV_MSG_$message.name (byte[] bytes) {
+			super(bytes);
+		}
+	
+		public MAV_MSG_$message.name (short systemId, short componentId#foreach( $field in $message.fields ), #getJavaType($field.type) $field.name #if($field.array)[]#end #end) {
+			super(systemId, componentId);
+#foreach( $field in $message.fields )
+			this.$field.name = $field.name;
+#end		
+		}
+
+		@Override
+		public int getMessageId() {
+			return $message.id;
+		}
+		
+		@Override
+		public int getLength() {
+			return $message.length;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return $message.CRCExtra;
+		}
+	
+#foreach( $field in $message.fields )
+		public #getJavaType($field.type)#if($field.array)[]#end get#toTitleCase($field.name)() {
+			return $field.name;
+		}
+		
+		public void set#toTitleCase($field.name)(#getJavaType($field.type) $field.name#if($field.array)[]#end) {
+			this.$field.name = $field.name;
+		}
+		
+#end
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+#foreach($field in $message.fields)
+#if($field.array)
+			for(int c=0; c<$field.length; ++c) {
+#if($field.type == "float")
+				$field.name [c] = buffer.getFloat(); // $field.type
+#elseif($field.type == "double")
+				$field.name [c] = buffer.getDouble(); // $field.type
+#elseif($field.type.contains("8_") || $field.type.contains("char"))
+				$field.name [c] =  (#getJavaType($field.type))buffer.get()#if(!$field.signed) & 0xff#end; // $field.type
+#elseif($field.type.contains("16_"))
+				$field.name [c] = buffer.getShort()#if(!$field.signed) & 0xffff#end; // $field.type
+#elseif($field.type.contains("32_"))
+				$field.name [c] = buffer.getInt()#if(!$field.signed) & 0xffffffff#end; // $field.type
+#elseif($field.type.contains("64_"))
+				$field.name [c] = buffer.getLong(); // $field.type
+#end ## type
+			}
+			
+#else
+#if($field.type == "float")
+			$field.name = buffer.getFloat(); // $field.type
+#elseif($field.type == "double")
+			$field.name = buffer.getDouble(); // $field.type
+#elseif($field.type.contains("8_") || $field.type.contains("char"))
+			$field.name = (#getJavaType($field.type))buffer.get()#if(!$field.signed) & 0xff#end; // $field.type
+#elseif($field.type.contains("16_"))
+			$field.name = buffer.getShort()#if(!$field.signed) & 0xffff#end; // $field.type
+#elseif($field.type.contains("32_"))
+			$field.name = buffer.getInt()#if(!$field.signed) & 0xffffffff#end; // $field.type
+#elseif($field.type.contains("64_"))
+			$field.name = buffer.getLong(); // $field.type
+#end ## type
+#end ## array	
+#end ## foreach	
+			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+#foreach($field in $message.fields)
+#if($field.array)
+			for(int c=0; c<$field.length; ++c) {
+#if($field.type == "float")
+				buffer.putFloat($field.name [c]); // $field.type
+#elseif($field.type == "double")
+				buffer.putDouble($field.name [c]); // $field.type
+#elseif($field.type.contains("8_") || $field.type.contains("char"))
+				buffer.put((byte)($field.name [c]#if(!$field.signed) & 0xff#end));
+#elseif($field.type.contains("16_"))
+				buffer.putShort((short)($field.name [c]#if(!$field.signed) & 0xffff#end));
+#elseif($field.type.contains("32_"))
+				buffer.putInt((int)($field.name [c]#if(!$field.signed) & 0xffffffff)#end));
+#elseif($field.type.contains("64_"))
+				buffer.putLong((long)$field.name [c]);
+#end ## type
+			}
+			
+#else
+#if($field.type == "float")
+			buffer.putFloat($field.name); // $field.type
+#elseif($field.type == "double")
+			buffer.putDouble($field.name); // $field.type
+#elseif($field.type.contains("8_") || $field.type.contains("char"))
+			buffer.put((byte)($field.name#if(!$field.signed) & 0xff#end)); // $field.type
+#elseif($field.type.contains("16_"))
+			buffer.putShort((short)($field.name#if(!$field.signed) & 0xffff#end)); // $field.type
+#elseif($field.type.contains("32_"))
+			buffer.putInt((int)($field.name#if(!$field.signed) & 0xffffffff#end)); // $field.type
+#elseif($field.type.contains("64_"))
+			buffer.putLong($field.name); // $field.type
+#end ## type
+#end ## array	
+#end ## foreach	
+			return buffer;
+		}
+	}
+#end
+
+}
