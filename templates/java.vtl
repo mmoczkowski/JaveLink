@@ -55,6 +55,17 @@ public class MavLink {
 		protected short componentId;
 		protected short sequenceIndex;
 	
+		public static Message decodeMessage(byte[] bytes) {
+			int messageId = bytes[5] & 0xFF;
+		
+			switch(messageId) {
+#foreach($message in $message_list)
+					case MSG_ID_$message.name: return new MSG_$message.name (bytes);
+#end
+					default: throw new IllegalArgumentException("Message with id=" + messageId + " is not supported.");
+			}
+		}
+	
 		protected Message(byte[] bytes) {
 			ByteBuffer buffer = ByteBuffer.wrap(bytes);
 			short startSign = (short)(buffer.get() & 0xFF);

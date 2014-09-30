@@ -22,7 +22,7 @@ import org.xml.sax.SAXException;
 public class MCG {
 
 	private static final String JAVA_TEMPLATE_PATH = "templates/java.vtl";
-	private static final String OUTPUT_PATH = "generated/eu/sathra/mavlink/MavLink.java";
+	private static final String OUTPUT_PATH = "generated/eu/sathra/mavlink/MAVLink.java";
 
 	private static final String ELEMENT_VERSION = "version";
 	private static final String ELEMENT_ENUM = "enum";
