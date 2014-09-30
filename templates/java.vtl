@@ -42,6 +42,13 @@ public class MavLink {
 #end	
  
 #end
+	/*
+	 * Message IDs
+	 */
+#foreach($message in $message_list)
+	public static final int MSG_ID_$message.name = $message.id;
+#end
+
 	public static abstract class Message {
 		
 		protected short systemId;
@@ -152,17 +159,17 @@ public class MavLink {
 	 * $message.description
 	 */
 #end
-	public static class MAV_MSG_$message.name extends Message {
+	public static class MSG_$message.name extends Message {
 	
 #foreach( $field in $message.fields )
 		private #getJavaType($field.type) $field.name#if($field.array)[] = new #getJavaType($field.type)[$field.length]#end; // $field.description
 #end
 	
-		public MAV_MSG_$message.name (byte[] bytes) {
+		public MSG_$message.name (byte[] bytes) {
 			super(bytes);
 		}
 	
-		public MAV_MSG_$message.name (short systemId, short componentId#foreach( $field in $message.fields ), #getJavaType($field.type) $field.name #if($field.array)[]#end #end) {
+		public MSG_$message.name (short systemId, short componentId#foreach( $field in $message.fields ), #getJavaType($field.type) $field.name #if($field.array)[]#end #end) {
 			super(systemId, componentId);
 #foreach( $field in $message.fields )
 			this.$field.name = $field.name;
@@ -171,7 +178,7 @@ public class MavLink {
 
 		@Override
 		public int getMessageId() {
-			return $message.id;
+			return MSG_ID_$message.name;
 		}
 		
 		@Override
@@ -271,6 +278,12 @@ public class MavLink {
 #end ## array	
 #end ## foreach	
 			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_$message.name { #foreach($field in $message.fields)" + 
+			"$field.name = " + $field.name + ", #end }";
 		}
 	}
 #end
