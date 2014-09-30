@@ -1,4 +1,4 @@
-![][http://qgroundcontrol.org/_media/mavlink/mavlink-logo.png?w=400&tok=fef87b]
+![](http://qgroundcontrol.org/_media/mavlink/mavlink-logo.png?w=400&tok=fef87b)
 
 ## What is MAVLink?
 
