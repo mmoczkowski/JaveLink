@@ -32,3 +32,5 @@ local.properties
 # TeXlipse plugin
 .texlipse
 
+# Miscelaneus
+common.xml
