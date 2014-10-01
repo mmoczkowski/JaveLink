@@ -13,6 +13,8 @@ import javax.xml.parsers.ParserConfigurationException;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
+import org.apache.velocity.runtime.RuntimeConstants;
+import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -45,11 +47,7 @@ public class MCG {
 		try {
 			Document myDocument = loadMavlinkXML(args[0]);
 
-			/*
-			 * Initialize velocity
-			 */
-			VelocityEngine velocity = new VelocityEngine();
-			velocity.init();
+			VelocityEngine velocity = initVelocityEngine();
 			VelocityContext context = new VelocityContext();
 
 			/*
@@ -63,8 +61,8 @@ public class MCG {
 			 * Write the output
 			 */
 			System.out.println("Writting output to: " + OUTPUT_PATH);
-			
-			Template messageTemplate = velocity.getTemplate(JAVA_TEMPLATE_PATH);
+
+			Template messageTemplate = velocity.getTemplate(JAVA_TEMPLATE_PATH);////JAVA_TEMPLATE_PATH);
 			writeOutput(OUTPUT_PATH, messageTemplate, context);
 
 			System.out.println("Done.");
@@ -73,6 +71,15 @@ public class MCG {
 		}
 	}
 
+	private static VelocityEngine initVelocityEngine() {
+		VelocityEngine velocity = new VelocityEngine();
+		velocity.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath");
+		velocity.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
+		velocity.init();
+		
+		return velocity;
+	}
+	
 	private static void parseProtocolVersion(Document document,
 			VelocityContext context) {
 		Node versionNode = document.getElementsByTagName(ELEMENT_VERSION).item(
