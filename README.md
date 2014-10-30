@@ -12,6 +12,6 @@ From the official MAVLink site:
 
 MAVLink messages are definied in an XML files. [You can look up the messages in the official MAVLink repository.](https://github.com/mavlink/mavlink/tree/master/message_definitions)
 
-## What is MAVLink4Java
+## What is JaveLink
 
-MAVLink4Java is a code generator that takes message definition xml files and generates java code.
+JaveLink is a code generator that takes message definition xml files and generates java code.
